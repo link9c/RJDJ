@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -12,6 +13,7 @@ import (
 	"RJDJ/backend/internal/middleware"
 	"RJDJ/backend/internal/model"
 	"RJDJ/backend/internal/okx"
+	"RJDJ/backend/internal/util"
 )
 
 // OkxDataHandler 拉取 OKX 数据（账户/行情）供看板与 AI 使用
@@ -69,6 +71,65 @@ func (h *OkxDataHandler) resolveCredential(c *gin.Context) (*okx.Credentials, er
 		return nil, err
 	}
 	return cred, nil
+}
+
+// resolveConfig 解析并解密一个 OKX 配置，返回配置对象与解密后的凭证。
+// config_id 优先，其次默认配置。与 resolveCredential 逻辑一致，额外返回 cfg 供缓存归属。
+func (h *OkxDataHandler) resolveConfig(c *gin.Context) (*model.OkxConfig, *okx.Credentials, error) {
+	uid := middleware.CurrentUser(c)
+	param := c.Query("config_id")
+	var targetID int
+	if param != "" {
+		targetID, _ = strconv.Atoi(param)
+	}
+	if targetID > 0 {
+		var cg model.OkxConfig
+		if err := h.db.Where("id = ? AND user_id = ?", targetID, uid).First(&cg).Error; err != nil {
+			return nil, nil, errors.New("配置不存在")
+		}
+		cred, err := h.decryptCred(&cg)
+		if err != nil {
+			return nil, nil, err
+		}
+		return &cg, cred, nil
+	}
+	cfgs := h.listConfigs(uid)
+	if len(cfgs) == 0 {
+		return nil, nil, errNoConfig
+	}
+	chosen := cfgs[0]
+	for _, cg := range cfgs {
+		if cg.IsDefault {
+			chosen = cg
+			break
+		}
+	}
+	cred, err := h.decryptCred(&chosen)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &chosen, cred, nil
+}
+
+func (h *OkxDataHandler) decryptCred(cg *model.OkxConfig) (*okx.Credentials, error) {
+	key, err := util.DecryptSecret(h.cfg.EncryptKey, cg.ApiKey)
+	if err != nil {
+		return nil, err
+	}
+	secret, err := util.DecryptSecret(h.cfg.EncryptKey, cg.ApiSecret)
+	if err != nil {
+		return nil, err
+	}
+	phrase, err := util.DecryptSecret(h.cfg.EncryptKey, cg.Passphrase)
+	if err != nil {
+		return nil, err
+	}
+	return &okx.Credentials{
+		ApiKey:     key,
+		ApiSecret:  secret,
+		Passphrase: phrase,
+		BaseURL:    normalizeBaseURL(cg.BaseURL),
+	}, nil
 }
 
 // Overview 账户总览：余额 + 持仓
@@ -172,6 +233,38 @@ func (h *OkxDataHandler) Candles(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"list": klines})
+}
+
+// PnlDaily 合约历史盈亏：每日已实现盈亏 + 各标的币盈亏（账单流水聚合，同步版，前端已改走异步任务）
+// 参数: days=回溯天数(默认90,上限180)  asset=可选标的币筛选(如 BTC/ETH)，填了则 Daily/ByAsset 只含该币
+func (h *OkxDataHandler) PnlDaily(c *gin.Context) {
+	cred, err := h.resolveCredential(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	client := h.buildOKXClient(cred)
+	days := atoiDefault(c.Query("days"), 90)
+	if days > 180 {
+		days = 180
+	}
+	bills, err := client.GetContractBills(days, 120)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "拉取账单流水失败: " + err.Error()})
+		return
+	}
+	asset := strings.ToUpper(strings.TrimSpace(c.Query("asset")))
+	var summary okx.PnlSummary
+	if asset != "" {
+		summary = okx.AggregatePnl(okx.FilterBillsByAsset(bills, asset))
+	} else {
+		summary = okx.AggregatePnl(bills)
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"summary": summary,
+		"days":    days,
+		"asset":   asset,
+	})
 }
 
 // Strategies 我的策略：聚合网格/马丁DCA/定投/信号/条件单（运行中或历史）

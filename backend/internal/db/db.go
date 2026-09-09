@@ -47,6 +47,7 @@ func autoMigrate(db *gorm.DB) error {
 		&model.OkxConfig{},
 		&model.ChatMessage{},
 		&model.AppSetting{},
+		&model.OkxBill{},
 	)
 	if err != nil {
 		return err

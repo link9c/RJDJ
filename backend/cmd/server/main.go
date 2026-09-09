@@ -68,6 +68,9 @@ func main() {
 		auth.GET("/okx/ticker", dataH.Ticker)
 		auth.GET("/okx/tickers", dataH.Tickers)
 		auth.GET("/okx/candles", dataH.Candles)
+		auth.GET("/okx/pnl/daily", dataH.PnlDaily)
+		auth.POST("/okx/pnl/daily/start", dataH.StartPnlFetch)
+		auth.GET("/okx/pnl/daily/status", dataH.PnlFetchStatus)
 		auth.GET("/okx/strategies", dataH.Strategies)
 		auth.GET("/okx/strategies/grid-positions", dataH.GridPositions)
 
@@ -102,6 +105,7 @@ func main() {
 		}
 	}
 
+	handler.StartPnlTaskJanitor()
 	log.Printf("OKX Analytics backend listening on %s", cfg.ServerAddr())
 	if err := r.Run(cfg.ServerAddr()); err != nil {
 		log.Fatalf("服务启动失败: %v", err)

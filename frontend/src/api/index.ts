@@ -94,7 +94,70 @@ export const dataApi = {
     ),
   gridPositions: (algoId?: string, instId?: string) =>
     http.get("/okx/strategies/grid-positions", { params: { algo_id: algoId, inst_id: instId } }),
+  pnlDaily: (configId?: number, days = 90, asset = "") =>
+    http.get<{
+      summary: PnlSummary;
+      days: number;
+      asset: string;
+    }>("/okx/pnl/daily", { params: { config_id: configId, days, asset } }),
+  // 异步拉取：先 start 拿 task_id，再轮询 status
+  pnlDailyStart: (configId?: number, days = 90, asset = "") =>
+    http.post<{
+      task_id: string;
+      days: number;
+      asset: string;
+      page_interval_ms: number;
+      est_seconds: number;
+    }>("/okx/pnl/daily/start", null, { params: { config_id: configId, days, asset } }),
+  pnlDailyStatus: (taskId: string) =>
+    http.get<{ task: PnlTaskStatus }>("/okx/pnl/daily/status", {
+      params: { task_id: taskId },
+    }),
 };
+
+export interface PnlPoint {
+  date: string;
+  pnl: number;
+  fee: number;
+  net: number;
+}
+export interface CcyPnl {
+  ccy: string;
+  pnl: number;
+  fee: number;
+  net: number;
+  count: number;
+}
+export interface AssetPnl {
+  asset: string;
+  pnl: number;
+  fee: number;
+  net: number;
+  count: number;
+}
+export interface PnlSummary {
+  daily: PnlPoint[];
+  byCcy: CcyPnl[];
+  byAsset: AssetPnl[];
+  totalPnl: number;
+  totalFee: number;
+  totalNet: number;
+  days: number;
+  records: number;
+}
+export interface PnlTaskStatus {
+  id: string;
+  done: boolean;
+  error: string;
+  pages: number;
+  covered_days: number;
+  new_saved: number;
+  elapsed_ms: number;
+  est_remain_sec: number;
+  days: number;
+  asset: string;
+  summary?: PnlSummary | null;
+}
 
 // ===== AI 对话 =====
 export const aiApi = {

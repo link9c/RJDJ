@@ -68,3 +68,23 @@ type AppSetting struct {
 	Value     string    `gorm:"type:text" json:"value"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
+
+// OkxBill 已拉取入缓存的历史账单流水（按 OKX billId 去重）。
+// 用于「有历史数据时直接读库，不再重复拉 OKX 接口」。
+type OkxBill struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	UserID    uint      `gorm:"index;not null" json:"user_id"`
+	ConfigID  uint      `gorm:"uniqueIndex:uk_cfg_bill;not null" json:"config_id"`
+	BillID    string    `gorm:"size:64;uniqueIndex:uk_cfg_bill" json:"billId"` // OKX billId，同 config 内唯一去重
+	InstType  string    `gorm:"size:16" json:"instType"`                        // SWAP / FUTURES
+	InstID    string    `gorm:"size:64" json:"instId"`
+	Ccy       string    `gorm:"size:16;index" json:"ccy"`
+	Pnl       float64   `json:"pnl"`     // 已实现盈亏
+	Fee       float64   `json:"fee"`     // 手续费(负)
+	BalChg    float64   `json:"balChg"`  // 余额变动
+	Type      string    `gorm:"size:8" json:"type"`
+	SubType   string    `gorm:"size:16" json:"subType"`
+	Ts        int64     `gorm:"index" json:"ts"` // 事件时间(毫秒)
+	Raw       string    `gorm:"type:text" json:"-"` // 原始 JSON，便于日后扩展字段
+	CreatedAt time.Time `json:"created_at"`
+}
