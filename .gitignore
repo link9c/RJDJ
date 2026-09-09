@@ -1,0 +1,15 @@
+# backend
+backend/bin/
+backend/data/*.db
+backend/data/*.db-*
+backend/.env
+backend/server.exe
+
+# frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# misc
+*.log
+.DS_Store
