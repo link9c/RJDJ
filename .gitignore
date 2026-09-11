@@ -1,3 +1,6 @@
+# env
+.env
+
 # backend
 backend/bin/
 backend/data/*.db

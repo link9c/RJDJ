@@ -19,7 +19,7 @@ func main() {
 	cfg := config.Load()
 
 	// 初始化数据库
-	gdb, err := db.Init(cfg.DBPath)
+	gdb, err := db.Init(cfg)
 	if err != nil {
 		log.Fatalf("初始化数据库失败: %v", err)
 	}
@@ -36,7 +36,7 @@ func main() {
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:3000"},
+		AllowOrigins:     cfg.CORSOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,

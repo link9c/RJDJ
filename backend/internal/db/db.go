@@ -1,37 +1,62 @@
 package db
 
 import (
+	"fmt"
 	"log"
-	"os"
-	"path/filepath"
+	"net"
+	"time"
 
-	"github.com/glebarez/sqlite" // 纯 Go 实现，免 CGO
+	mysqldriver "github.com/go-sql-driver/mysql"
+	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
+	"RJDJ/backend/internal/config"
 	"RJDJ/backend/internal/model"
 	"RJDJ/backend/internal/util"
 )
 
-// Init 初始化数据库连接并自动建表
-func Init(dbPath string) (*gorm.DB, error) {
-	// 确保目录存在
-	if dir := filepath.Dir(dbPath); dir != "" {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return nil, err
+// Init 初始化 MySQL 连接并自动建表
+func Init(cfg *config.Config) (*gorm.DB, error) {
+	dsn := cfg.DBDSN
+	if dsn == "" {
+		mc := mysqldriver.NewConfig()
+		mc.User = cfg.DBUser
+		mc.Passwd = cfg.DBPassword
+		mc.Net = "tcp"
+		mc.Addr = net.JoinHostPort(cfg.DBHost, cfg.DBPort)
+		mc.DBName = cfg.DBName
+		mc.Params = map[string]string{"charset": "utf8mb4"}
+		mc.ParseTime = true
+		mc.Loc = time.Local
+		mc.AllowNativePasswords = true
+		dsn = mc.FormatDSN()
+	}
+
+	var gdb *gorm.DB
+	var err error
+	for i := 1; i <= 30; i++ {
+		gdb, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
+			Logger: logger.Default.LogMode(logger.Warn),
+		})
+		if err == nil {
+			if sqlDB, pingErr := gdb.DB(); pingErr == nil {
+				if pingErr = sqlDB.Ping(); pingErr == nil {
+					sqlDB.SetMaxIdleConns(10)
+					sqlDB.SetMaxOpenConns(50)
+					sqlDB.SetConnMaxLifetime(time.Hour)
+					break
+				}
+				err = pingErr
+			} else {
+				err = pingErr
+			}
 		}
+		log.Printf("[db] 等待 MySQL (%s:%s) 第 %d/30 次: %v", cfg.DBHost, cfg.DBPort, i, err)
+		time.Sleep(2 * time.Second)
 	}
-
-	gdb, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Warn),
-	})
 	if err != nil {
-		return nil, err
-	}
-
-	// 启用 WAL 提高并发
-	if sqlDB, err := gdb.DB(); err == nil {
-		sqlDB.SetMaxOpenConns(1)
+		return nil, fmt.Errorf("连接 MySQL 失败: %w", err)
 	}
 
 	if err := autoMigrate(gdb); err != nil {

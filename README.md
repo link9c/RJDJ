@@ -2,14 +2,14 @@
 
 一个自托管的 **OKX 交易数据看板 + AI 分析** 平台。
 
-> 后端 Go + SQLite 存储与对接 OKX API（签名鉴权参考 [goex](https://github.com/nntaoli-project/goex) 的 OKX 实现规范）；
+> 后端 Go + MySQL 存储与对接 OKX API（签名鉴权参考 [goex](https://github.com/nntaoli-project/goex) 的 OKX 实现规范）；
 > 前端 React (Vite + Tailwind)，中后台界面风格参考工时填报系统。
 
 ## ✨ 功能
 
 - 🔐 **账号密码登录**：本地注册/登录，JWT 鉴权（默认管理员 `admin / admin123`）
 - 🔑 **可配置的 OKX API Key**：api_key / secret / passphrase / **域名(BaseURL)** 均可配置，
-  支持多账户、默认账户、一键测试连接。密钥经 **AES-256-GCM** 加密后存入 SQLite，接口永不回传明文。
+  支持多账户、默认账户、一键测试连接。密钥经 **AES-256-GCM** 加密后存入 MySQL，接口永不回传明文。
 - 📊 **资产看板**：账户总权益、各币种余额、资产占比饼图、持仓明细（方向/开仓价/浮动盈亏/杠杆）
 - 🤖 **AI 对话分析**：接入 OpenAI 兼容大模型，AI 通过 **Function Calling** 自动调用 OKX 接口
   拉取真实数据（账户/持仓/行情/K线），再给出行情解读、盈亏分析、持仓建议。
@@ -19,28 +19,33 @@
 | 层 | 技术 |
 |---|---|
 | 前端 | React 18 · Vite · TypeScript · Tailwind · ECharts · zustand · react-router |
-| 后端 | Go 1.27 · Gin · GORM · SQLite(纯 Go, 免 CGO) · golang-jwt |
+| 后端 | Go 1.27 · Gin · GORM · MySQL 8 · golang-jwt |
 | OKX 对接 | 自研轻量 OKX v5 REST 客户端（HMAC-SHA256 签名，域名可配），规范对齐 goex |
 | AI | OpenAI 兼容 Chat Completions + Function Calling（OpenAI / DeepSeek / 其他） |
+| 部署 | Docker Compose（MySQL + 后端 + Nginx 前端） |
 
 ## 📁 目录结构
 
 ```
 RJDJ/
+├── docker-compose.yml       # 一键部署
+├── .env.example             # Compose 环境变量模板
 ├── backend/                 # Go 后端
+│   ├── Dockerfile
 │   ├── cmd/server/main.go   # 入口
 │   ├── internal/
 │   │   ├── config/          # 配置加载 (.env)
-│   │   ├── db/              # SQLite 初始化 + 种子
+│   │   ├── db/              # MySQL 初始化 + 种子
 │   │   ├── model/           # 数据模型
 │   │   ├── util/            # 密码哈希 / AES 加解密
 │   │   ├── middleware/      # JWT
 │   │   ├── okx/             # OKX v5 REST 客户端（参考 goex 规范）
 │   │   ├── ai/              # LLM 客户端 + 工具定义
 │   │   └── handler/         # HTTP 处理器
-│   ├── .env.example
-│   └── data/app.db          # SQLite 数据库（自动生成）
+│   └── .env.example
 └── frontend/                # React 前端
+    ├── Dockerfile
+    ├── nginx.conf           # /api 反代到后端
     └── src/
         ├── api/             # HTTP 封装 + 类型
         ├── store/           # zustand
@@ -48,23 +53,64 @@ RJDJ/
         └── pages/           # 登录 / 看板 / AI / 配置
 ```
 
-## 🚀 本地运行
+## 🐳 Docker Compose 部署（推荐）
+
+需要已安装 Docker 与 Docker Compose。
+
+```bash
+cp .env.example .env
+# 编辑 .env：修改 MYSQL_PASSWORD / JWT_SECRET / ENCRYPT_KEY（生产务必改）
+# 可选填入 LLM_API_KEY / LLM_BASE_URL / LLM_MODEL
+
+docker compose up -d --build
+```
+
+浏览器打开 http://localhost（默认 `APP_PORT=80`），用 `admin / admin123` 登录。
+
+常用命令：
+
+```bash
+docker compose ps
+docker compose logs -f backend
+docker compose down          # 停服务，保留数据卷
+docker compose down -v       # 停服务并删除 MySQL 数据
+```
+
+服务组成：
+
+| 服务 | 说明 |
+|---|---|
+| `mysql` | MySQL 8，数据卷 `mysql_data`（默认不映射到宿主机，避免端口冲突） |
+| `backend` | Go API，内部端口 8080，经前端 Nginx 反代 |
+| `frontend` | Nginx 托管静态资源，并把 `/api` 转到后端 |
+
+## 🚀 本地开发
+
+先有一台可达的 MySQL（可用 Compose 只起数据库；默认不映射 3306 到宿主机）。
+本地 `go run` 需要直连时，在 `docker-compose.yml` 的 `mysql` 服务下增加：
+
+```yaml
+ports:
+  - "127.0.0.1:3306:3306"
+```
+
+然后：
+
+```bash
+docker compose up -d mysql
+```
 
 ### 1. 启动后端（端口 8080）
 
 ```bash
 cd backend
 
-# 首次：安装 Go 依赖
-go mod tidy
-
-# 配置环境变量（AI 必须填 LLM_API_KEY 才能对话）
 cp .env.example .env
-# 编辑 .env，填入 LLM_API_KEY / LLM_BASE_URL / LLM_MODEL
+# 编辑 .env，确认 DB_* 与上面 MySQL 账号一致
+# AI 对话需填 LLM_API_KEY / LLM_BASE_URL / LLM_MODEL（也可登录后在网页配置）
 
-# 运行
+go mod tidy
 go run ./cmd/server
-# 或编译后运行： go build -o bin/server.exe ./cmd/server && ./bin/server.exe
 ```
 
 ### 2. 启动前端（端口 5173，已代理 /api 到 8080）
@@ -86,7 +132,7 @@ npm run dev
 
 ## ⚙️ AI 大模型配置（.env）
 
-`backend/.env` 使用 **OpenAI 兼容** 协议：
+`backend/.env` 或项目根目录 `.env` 使用 **OpenAI 兼容** 协议：
 
 ```dotenv
 LLM_PROVIDER=deepseek            # 备注用，仅作标识
@@ -114,6 +160,7 @@ AI 可调用的工具（自动）：`get_account_overview`（账户+持仓）、
 - OKX 密钥：AES-256-GCM 加密后落库，密钥来自 `.env` 的 `ENCRYPT_KEY`（**务必修改默认值**）
 - 对外接口只返回掩码后的 key，不返回 secret/passphrase
 - 默认种子管理员 `admin/admin123`，首次部署后请立即修改或禁用
+- 生产环境请修改 `MYSQL_ROOT_PASSWORD` / `MYSQL_PASSWORD` / `JWT_SECRET` / `ENCRYPT_KEY`
 
 ## ❗ 免责声明
 
