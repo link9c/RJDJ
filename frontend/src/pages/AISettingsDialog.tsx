@@ -81,19 +81,29 @@ export default function AISettingsDialog({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="card w-full max-w-lg p-0 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 p-0 sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="card w-full max-w-lg p-0 overflow-hidden rounded-t-2xl sm:rounded-xl max-h-[94dvh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 sm:px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
           <h3 className="font-semibold text-slate-800 flex items-center gap-2">
             <Bot size={18} className="text-brand-600" />
             AI 大模型配置
           </h3>
-          <button className="text-slate-400 hover:text-slate-600 text-xl leading-none" onClick={onClose}>
-            ×
+          <button
+            className="p-1.5 -mr-1.5 text-slate-400 hover:text-slate-600 text-xl leading-none"
+            onClick={onClose}
+            aria-label="关闭"
+          >
+            <X size={18} />
           </button>
         </div>
 
-        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+        <div className="p-5 sm:p-6 space-y-4 overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center py-10 text-slate-400">
               <Loader2 className="animate-spin mr-2" size={18} /> 加载中…
@@ -186,11 +196,11 @@ export default function AISettingsDialog({ onClose }: { onClose: () => void }) {
             </>
           )}
 
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-            <button className="btn-outline" onClick={onClose}>
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2 border-t border-slate-100">
+            <button className="btn-outline w-full sm:w-auto" onClick={onClose}>
               关闭
             </button>
-            <button className="btn-primary" onClick={handleSave} disabled={loading || saving}>
+            <button className="btn-primary w-full sm:w-auto" onClick={handleSave} disabled={loading || saving}>
               {saving && <Loader2 size={15} className="animate-spin" />}
               保存并测试
             </button>

@@ -56,7 +56,7 @@ export default function StrategiesPage() {
   return (
     <div className="space-y-4">
       {/* 标题操作条 */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="px-2.5 py-1 rounded-lg bg-slate-900 text-white text-sm flex items-center gap-1.5">
             <Bot size={16} />
@@ -173,6 +173,9 @@ function StrategyTable({
           <div className="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
             <span className="text-sm font-semibold text-slate-700">{KIND_META[kind]?.label}</span>
             <span className="text-xs text-slate-400">{history ? "历史" : "运行中"} {items.length} 个</span>
+          </div>
+          <div className="lg:hidden px-5 py-1.5 text-[11px] text-slate-400 bg-slate-50 border-b border-slate-100">
+            ← 左右滑动查看更多列 →
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">

@@ -85,9 +85,9 @@ export default function AnalyzePage() {
   const noConfig = list.length === 0;
 
   return (
-    <div className="flex flex-col h-full max-h-[calc(100vh-8rem)]">
+    <div className="flex flex-col h-full max-h-[calc(100dvh-5.5rem)] sm:max-h-[calc(100vh-8rem)]">
       {/* 顶部操作条 */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <p className="text-xs text-slate-400">
           通过自然语言提问，AI 将实时调用 OKX 接口并分析
         </p>
@@ -103,7 +103,7 @@ export default function AnalyzePage() {
 
       {/* 头部提示 */}
       {noConfig && (
-        <div className="flex items-center justify-between bg-amber-50 border border-amber-200 text-amber-700 text-sm rounded-lg px-4 py-3 mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-amber-50 border border-amber-200 text-amber-700 text-sm rounded-lg px-4 py-3 mb-4">
           <span className="flex items-center gap-2">
             <AlertTriangle size={16} />
             请先配置 OKX 密钥，AI 才能拉取你的账户数据
@@ -115,7 +115,7 @@ export default function AnalyzePage() {
       )}
 
       {/* 消息区 */}
-      <div className="card flex-1 overflow-y-auto p-5 space-y-5 bg-white min-h-0">
+      <div className="card flex-1 overflow-y-auto p-3.5 sm:p-5 space-y-5 bg-white min-h-0">
         {!historyLoaded ? (
           <div className="text-center py-20 text-slate-400">加载中…</div>
         ) : messages.length === 0 && !thinking ? (
@@ -163,9 +163,9 @@ export default function AnalyzePage() {
       <div className="mt-3">
         <div className="card flex items-end gap-2 p-2 pl-4">
           <textarea
-            className="flex-1 resize-none bg-transparent outline-none text-sm py-2 text-slate-800 placeholder:text-slate-400 max-h-32"
+            className="flex-1 resize-none bg-transparent outline-none text-base sm:text-sm py-2 text-slate-800 placeholder:text-slate-400 max-h-32"
             rows={1}
-            placeholder={noConfig ? "先配置 OKX 密钥后即可提问…" : "问问 AI：我的资产怎么样？持仓是否该止盈？"}
+            placeholder={noConfig ? "先配置 OKX 密钥后即可提问…" : "向 AI 提问：资产、持仓、行情…"}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -184,7 +184,7 @@ export default function AnalyzePage() {
             <span className="hidden sm:inline">{thinking ? "分析中" : "发送"}</span>
           </button>
         </div>
-        <p className="text-[11px] text-slate-400 mt-1.5 px-1">
+        <p className="hidden sm:block text-[11px] text-slate-400 mt-1.5 px-1">
           Enter 发送，Shift+Enter 换行。AI 会自动调用 OKX 接口拉取真实数据后作答。
         </p>
       </div>
@@ -194,7 +194,7 @@ export default function AnalyzePage() {
 
 function Welcome() {
   return (
-    <div className="text-center py-14">
+    <div className="text-center py-8 sm:py-14 px-2">
       <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-indigo-600 flex items-center justify-center mb-4 shadow-lg">
         <Bot size={30} className="text-white" />
       </div>
@@ -210,7 +210,7 @@ function Welcome() {
 function Bubble({ msg }: { msg: ChatMessage }) {
   const isUser = msg.role === "user";
   return (
-    <div className={`flex gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
+    <div className={`flex gap-2 sm:gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
       <div
         className={`shrink-0 h-8 w-8 rounded-lg flex items-center justify-center ${
           isUser ? "bg-slate-200" : "bg-gradient-to-br from-brand-500 to-indigo-600"
@@ -223,7 +223,7 @@ function Bubble({ msg }: { msg: ChatMessage }) {
         )}
       </div>
       <div
-        className={`max-w-[80%] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap rounded-2xl ${
+        className={`max-w-[82%] px-3.5 py-2.5 sm:px-4 sm:py-3 text-sm leading-relaxed whitespace-pre-wrap rounded-2xl break-words ${
           isUser
             ? "bg-brand-600 text-white rounded-tr-sm"
             : "bg-slate-100 text-slate-700 rounded-tl-sm"

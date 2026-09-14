@@ -20,7 +20,7 @@ export default function ConfigPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-slate-700 font-medium">已保存的 OKX 接口配置</h3>
           <p className="text-xs text-slate-400 mt-1">
@@ -53,10 +53,10 @@ export default function ConfigPage() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {list.map((c) => (
-            <div key={c.id} className="card p-5 space-y-3">
-              <div className="flex items-start justify-between">
+            <div key={c.id} className="card p-4 sm:p-5 space-y-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <h4 className="font-semibold text-slate-800">
                       {c.is_default && <Star size={14} className="inline text-amber-400 mb-0.5 mr-1" />}
                       {c.name || `配置 ${c.id}`}
@@ -67,11 +67,11 @@ export default function ConfigPage() {
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                    <Globe size={12} /> {c.base_url}
+                  <p className="text-xs text-slate-400 mt-1 flex items-center gap-1 break-all">
+                    <Globe size={12} className="shrink-0" /> {c.base_url}
                   </p>
                 </div>
-                <span className="px-2 py-1 rounded text-[11px] bg-emerald-50 text-emerald-600 font-medium">
+                <span className="px-2 py-1 rounded text-[11px] bg-emerald-50 text-emerald-600 font-medium break-all">
                   api_key: {c.api_key}
                 </span>
               </div>
@@ -82,7 +82,7 @@ export default function ConfigPage() {
                 </p>
               )}
 
-              <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
+              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
                 <button
                   className="btn-ghost !px-2.5 !py-1.5 text-xs"
                   onClick={() => {
@@ -196,19 +196,29 @@ function ConfigForm({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="card w-full max-w-lg p-0 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 p-0 sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="card w-full max-w-lg p-0 overflow-hidden rounded-t-2xl sm:rounded-xl max-h-[94dvh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 sm:px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50 shrink-0">
           <h3 className="font-semibold text-slate-800">
             {editing ? "编辑配置" : "新增 OKX 配置"}
           </h3>
-          <button className="text-slate-400 hover:text-slate-600 text-xl leading-none" onClick={onClose}>
+          <button
+            className="p-1.5 -mr-1.5 text-slate-400 hover:text-slate-600 text-xl leading-none"
+            onClick={onClose}
+            aria-label="关闭"
+          >
             ×
           </button>
         </div>
 
-        <div className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+        <div className="p-5 sm:p-6 space-y-4 overflow-y-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="label">配置名称</label>
               <input
@@ -307,11 +317,11 @@ function ConfigForm({
             <div className="bg-red-50 text-red-600 text-sm rounded-lg px-3 py-2">{error}</div>
           )}
 
-          <div className="flex justify-end gap-2 pt-2">
-            <button className="btn-outline" onClick={onClose}>
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+            <button className="btn-outline w-full sm:w-auto" onClick={onClose}>
               取消
             </button>
-            <button className="btn-primary" onClick={handleSave} disabled={loading}>
+            <button className="btn-primary w-full sm:w-auto" onClick={handleSave} disabled={loading}>
               {loading && <Loader2 size={15} className="animate-spin" />}
               保存
             </button>

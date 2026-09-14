@@ -76,9 +76,9 @@ export default function LoginPage() {
       </div>
 
       {/* 右侧表单区 */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-slate-50">
+      <div className="flex-1 flex items-center justify-center p-4 sm:p-8 bg-slate-50">
         <div className="w-full max-w-md">
-          <div className="mb-8 text-center lg:text-left">
+          <div className="mb-6 sm:mb-8 text-center lg:text-left">
             <h2 className="text-2xl font-bold text-slate-800">
               {mode === "login" ? "欢迎回来" : "创建账号"}
             </h2>
@@ -89,7 +89,7 @@ export default function LoginPage() {
             </p>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-card border border-slate-200 p-7">
+          <div className="bg-white rounded-2xl shadow-card border border-slate-200 p-5 sm:p-7">
             <div className="flex bg-slate-100 rounded-lg p-1 mb-6">
               <button
                 className={`flex-1 py-2 text-sm font-medium rounded-md transition ${

@@ -43,23 +43,37 @@ export default function DashboardPage() {
     const details = (data.balance?.details || [])
       .filter((d) => Number(d.eqUsd) > 0)
       .slice(0, 8);
+    const isMobile = window.innerWidth < 640;
     chart.setOption({
       tooltip: { trigger: "item", formatter: "{b}: ${c} ({d}%)" },
-      legend: {
-        orient: "vertical",
-        right: 8,
-        top: "middle",
-        textStyle: { fontSize: 12, color: "#475569" },
-        formatter: (name: string) => {
-          const d = details.find((x) => x.ccy === name);
-          return name + (d ? `  ${fmtUsd(d.eqUsd)}` : "");
-        },
-      },
+      legend: isMobile
+        ? {
+            type: "scroll",
+            orient: "horizontal",
+            bottom: 0,
+            left: "center",
+            width: "92%",
+            textStyle: { fontSize: 11, color: "#475569" },
+            formatter: (name: string) => {
+              const d = details.find((x) => x.ccy === name);
+              return name + (d ? ` ${fmtUsd(d.eqUsd)}` : "");
+            },
+          }
+        : {
+            orient: "vertical",
+            right: 8,
+            top: "middle",
+            textStyle: { fontSize: 12, color: "#475569" },
+            formatter: (name: string) => {
+              const d = details.find((x) => x.ccy === name);
+              return name + (d ? `  ${fmtUsd(d.eqUsd)}` : "");
+            },
+          },
       series: [
         {
           type: "pie",
-          radius: ["45%", "72%"],
-          center: ["38%", "50%"],
+          radius: isMobile ? ["42%", "66%"] : ["45%", "72%"],
+          center: isMobile ? ["50%", "42%"] : ["38%", "50%"],
           avoidLabelOverlap: false,
           itemStyle: { borderRadius: 6, borderColor: "#fff", borderWidth: 2 },
           label: { show: false },
@@ -98,7 +112,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-5">
       {/* 顶部提示/刷新条 */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-sm text-slate-500">
           {noConfig ? (
             <span className="flex items-center gap-2 text-amber-600">
@@ -140,7 +154,7 @@ export default function DashboardPage() {
       ) : (
         <>
           {/* 统计卡片 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
             <StatCard
               title="账户总权益 (USD)"
               value={fmtUsd(data.balance?.totalEq)}
@@ -172,15 +186,15 @@ export default function DashboardPage() {
           </div>
 
           {/* 图表 + 持仓 */}
-          <div className="grid grid-cols-1 xl:grid-cols-5 gap-4">
-            <div className="card p-5 xl:col-span-2">
+          <div className="grid grid-cols-1 xl:grid-cols-5 gap-3 sm:gap-4">
+            <div className="card p-4 sm:p-5 xl:col-span-2">
               <h3 className="text-sm font-semibold text-slate-700 mb-1">资产配置</h3>
               <p className="text-xs text-slate-400 mb-2">按币种折合 USD 占比</p>
-              <div ref={chartRef} className="h-72" />
+              <div ref={chartRef} className="h-64 sm:h-72" />
             </div>
 
             <div className="card overflow-hidden xl:col-span-3">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <div className="flex items-center justify-between px-4 sm:px-5 py-3.5 sm:py-4 border-b border-slate-100">
                 <h3 className="text-sm font-semibold text-slate-700">当前持仓</h3>
                 <span className="text-xs text-slate-400">
                   未实现盈亏总计{" "}
@@ -194,7 +208,11 @@ export default function DashboardPage() {
                   暂无持仓
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <>
+                  <div className="lg:hidden px-4 py-1.5 text-[11px] text-slate-400 bg-slate-50 border-b border-slate-100">
+                    ← 左右滑动查看更多列 →
+                  </div>
+                  <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
                       <tr>
@@ -237,18 +255,22 @@ export default function DashboardPage() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                  </div>
+                </>
               )}
             </div>
           </div>
 
           {/* 币种余额明细 */}
           <div className="card overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-slate-100 flex items-center justify-between gap-2">
               <h3 className="text-sm font-semibold text-slate-700">各币种余额</h3>
-              <span className="text-xs text-slate-400">
+              <span className="text-xs text-slate-400 text-right">
                 币种权益 / 可用 / 冻结 / 折合美元
               </span>
+            </div>
+            <div className="lg:hidden px-4 py-1.5 text-[11px] text-slate-400 bg-slate-50 border-b border-slate-100">
+              ← 左右滑动查看更多列 →
             </div>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -477,7 +499,7 @@ function PnlHistoryBlock({ configId }: { configId?: number }) {
   return (
     <div className="card overflow-hidden">
       {/* 头部 */}
-      <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+      <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-2">
           <h3 className="text-sm font-semibold text-slate-700">合约历史盈亏</h3>
           <span className="text-xs text-slate-400">按交易标的币(如 BTC/ETH)的已实现盈亏</span>
@@ -502,7 +524,7 @@ function PnlHistoryBlock({ configId }: { configId?: number }) {
           <select
             value={asset}
             onChange={(e) => setAsset(e.target.value)}
-            className="text-xs rounded-md border border-slate-200 bg-white text-slate-600 px-1.5 py-1 outline-none focus:border-blue-400"
+            className="text-xs sm:text-xs rounded-md border border-slate-200 bg-white text-slate-600 px-2 py-1.5 sm:py-1 outline-none focus:border-blue-400 min-h-[34px]"
             title="按交易标的币(BTC/ETH)筛选每日柱状图"
           >
             <option value="">全部币</option>
@@ -516,7 +538,7 @@ function PnlHistoryBlock({ configId }: { configId?: number }) {
             {[30, 90].map((d) => (
               <button
                 key={d}
-                className={`px-2.5 py-1 text-xs rounded transition ${
+                className={`px-3 py-1.5 text-xs rounded transition ${
                   days === d ? "bg-slate-200 text-slate-800" : "text-slate-500"
                 }`}
                 onClick={() => setDays(d)}
@@ -662,7 +684,7 @@ function StatCard({
   valueClass?: string;
 }) {
   return (
-    <div className="card p-5 flex items-start justify-between">
+    <div className="card p-4 sm:p-5 flex items-start justify-between">
       <div>
         <p className="text-xs text-slate-500">{title}</p>
         <p className={`mt-2 text-2xl font-bold text-slate-800 ${valueClass || ""}`}>
