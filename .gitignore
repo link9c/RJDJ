@@ -16,3 +16,6 @@ frontend/.vite/
 # misc
 *.log
 .DS_Store
+
+# mysql data (bind mount)
+data/
