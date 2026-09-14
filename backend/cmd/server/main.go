@@ -35,12 +35,19 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
 	r.Use(gin.Logger(), gin.Recovery())
-	r.Use(cors.New(cors.Config{
-		AllowOrigins:     cfg.CORSOrigins,
+	// CORS：CORS_ORIGINS 为 "*" 时放行所有来源（回显 Origin，兼容局域网 IP/主机名访问），
+	// 否则按逗号分隔的白名单精确匹配
+	corsCfg := cors.Config{
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
-	}))
+	}
+	if len(cfg.CORSOrigins) == 1 && cfg.CORSOrigins[0] == "*" {
+		corsCfg.AllowOriginFunc = func(origin string) bool { return true }
+	} else {
+		corsCfg.AllowOrigins = cfg.CORSOrigins
+	}
+	r.Use(cors.New(corsCfg))
 
 	// ========== API 路由 ==========
 	api := r.Group("/api")

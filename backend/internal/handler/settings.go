@@ -37,7 +37,7 @@ type AISettingReq struct {
 
 func (h *SettingsHandler) get(key string) string {
 	var s model.AppSetting
-	if err := h.db.Where("key = ?", key).First(&s).Error; err != nil {
+	if err := h.db.Where("`key` = ?", key).First(&s).Error; err != nil {
 		return ""
 	}
 	return s.Value
@@ -45,11 +45,11 @@ func (h *SettingsHandler) get(key string) string {
 
 func (h *SettingsHandler) set(key, value string) {
 	if value == "" {
-		h.db.Where("key = ?", key).Delete(&model.AppSetting{})
+		h.db.Where("`key` = ?", key).Delete(&model.AppSetting{})
 		return
 	}
 	var s model.AppSetting
-	err := h.db.Where("key = ?", key).First(&s).Error
+	err := h.db.Where("`key` = ?", key).First(&s).Error
 	if err != nil {
 		h.db.Create(&model.AppSetting{Key: key, Value: value})
 	} else {

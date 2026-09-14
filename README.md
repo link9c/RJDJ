@@ -65,7 +65,7 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-浏览器打开 http://localhost（默认 `APP_PORT=80`），用 `admin / admin123` 登录。
+浏览器打开 http://localhost:8077（默认 `APP_PORT=8077`），用 `admin / admin123` 登录。
 
 常用命令：
 
