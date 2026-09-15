@@ -120,8 +120,12 @@ export default function StrategyDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId, list.length]);
 
+  // 合约判断：优先用 API 返回的 instType，其次按 algoOrdType 推断，最后回退到 URL 参数
   const isContract =
-    detail?.instType === "SWAP" || detail?.instType === "FUTURES";
+    detail?.instType === "SWAP" ||
+    detail?.instType === "FUTURES" ||
+    (detail?.algoOrdType?.includes("contract") ?? false) ||
+    (!detail?.instType && (instType === "SWAP" || instType === "FUTURES"));
   const ccy = useMemo(() => {
     const parts = (detail?.instId || "").split("-");
     return parts[1] || "USDT";
@@ -134,6 +138,18 @@ export default function StrategyDetailPage() {
     if (!detail) return;
     setTouched(false);
     const c = detail.calc;
+    // DEBUG：F12 控制台看真实回填值 —— 上线前可删
+    console.log("[StrategyDetail v20260915]", {
+      posSource: detail.posSource,
+      avgPx: detail.avgPx,
+      tpTriggerPx: detail.tpTriggerPx,
+      posContracts: detail.posContracts,
+      baseSz: detail.baseSz,
+      ctVal: detail.ctVal,
+      instType: detail.instType,
+      direction: detail.direction,
+      calc: c,
+    });
     setInp({
       direction:
         detail.direction === "short" || detail.side === "short"
@@ -216,6 +232,10 @@ export default function StrategyDetailPage() {
                     </span>
                   )}
                   <StateBadge state={detail.state} />
+                  {/* 版本戳 —— 用于远端验证是否拿到新代码，上线后可删 */}
+                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-brand-50 text-brand-600 border border-brand-100 font-mono">
+                    v20260915-3
+                  </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-xs text-slate-400">
                   <span>

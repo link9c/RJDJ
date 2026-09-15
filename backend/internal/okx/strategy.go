@@ -585,6 +585,14 @@ func (c *Client) GetStrategyDetail(kind, algoId string) (*StrategyDetail, error)
 	if d.AlgoOrdType == "" {
 		d.AlgoOrdType = map[string]string{"grid": "grid", "dca": "spot_dca", "recurring": "recurring", "signal": "signal"}[kind]
 	}
+	// OKX DCA ongoing-list 某些时序下不返回 instType，按 algoOrdType 推断
+	if d.InstType == "" {
+		if strings.Contains(d.AlgoOrdType, "contract") {
+			d.InstType = "SWAP"
+		} else if d.AlgoOrdType == "spot_dca" || d.AlgoOrdType == "grid" || d.AlgoOrdType == "recurring" {
+			d.InstType = "SPOT"
+		}
+	}
 	normalizeDirection(&d)
 	d.Raw = raw
 	return &d, nil
