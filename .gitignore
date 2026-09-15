@@ -19,3 +19,4 @@ frontend/.vite/
 
 # mysql data (bind mount)
 data/
+sysmon/config.json
