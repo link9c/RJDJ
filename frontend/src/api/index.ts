@@ -73,6 +73,130 @@ export interface BotStrategy {
   uTime?: string;
 }
 
+// 止盈测算结果（后端 DetailCalc）
+export interface DetailCalc {
+  posCoin: number; // 持仓量（币）
+  posContracts: number; // 持仓量（张，合约）
+  costPx: number; // 成本价
+  tpPx: number; // 止盈价
+  currentPx: number; // 最新价
+  costValue: number; // 持仓成本
+  currentValue: number; // 当前市值
+  currentFloat: number; // 当前浮动盈亏
+  tpReturnValue: number; // 止盈卖出收入
+  tpProfit: number; // 止盈盈利
+  tpRatio: number; // 止盈收益率（小数）
+  direction: string; // long / short
+  isContract: boolean;
+  ctVal: number; // 合约面值（币/张）
+  ccy: string; // 计价币
+}
+
+// 马丁策略当前周期持仓（/dca/position-details）
+export interface DcaPositionDetail {
+  algoId: string;
+  algoOrdType: string;
+  instId: string;
+  curCycleId: string;
+  startTime: string;
+  fillManualOrds: string;
+  fillSafetyOrds: string;
+  fundingFee: string;
+  initPx: string;
+  notionalUsd: string;
+  avgPx: string;
+  upl: string;
+  liqPx: string;
+  sz: string;
+  baseSz: string;
+  quoteSz: string;
+  slPx: string;
+  tpPx: string;
+  fee: string;
+}
+
+// 马丁周期
+export interface DcaCycle {
+  cycleId: string;
+  currentCycle: boolean;
+  cycleStatus: string;
+  realizedPnl: string;
+  startTime: string;
+  endTime: string;
+  fee: string;
+  avgPx: string;
+  tpPx: string;
+}
+
+// 马丁子订单（成交记录）
+export interface DcaSubOrder {
+  cycleId: string;
+  ordId: string;
+  avgFillPx: string;
+  direction: string;
+  side: string; // buy / sell
+  ordType: string;
+  px: string;
+  sz: string;
+  filledSz: string;
+  state: string;
+  fee: string;
+  rebate: string;
+  rebateCcy: string;
+  lever: string;
+  instId: string;
+  ctVal: string;
+  fillTime: string;
+  cTime: string;
+  uTime: string;
+}
+
+// 策略详情
+export interface StrategyDetail extends BotStrategy {
+  avgPx?: string; // 平均持仓价
+  posContracts?: string; // 合约持仓（张）
+  ctVal?: string; // 合约面值
+  tpTriggerPx?: string; // 止盈触发价（DCA 为 tpPriceRange）
+  slTriggerPx?: string; // 止损触发价
+  tpTriggerPxType?: string;
+  slTriggerPxType?: string;
+  // DCA 特有
+  initOrdAmt?: string;
+  safetyOrdAmt?: string;
+  pxSteps?: string;
+  volMult?: string;
+  investmentAmt?: string;
+  totalFundingFee?: string;
+  arbitragePnl?: string;
+  allowReinvest?: boolean;
+  // DCA 当前周期持仓 / 周期 / 成交记录
+  position?: DcaPositionDetail | null;
+  cycles?: DcaCycle[];
+  orders?: DcaSubOrder[];
+  posSource?: "position" | "cycle" | "none" | string;
+  cycleId?: string;
+  notionalUsd?: string;
+  // 网格特有
+  arbitrageNum?: string;
+  gridProfit?: string;
+  floatProfit?: string;
+  annualizedRate?: string;
+  realizedPnl?: string;
+  // 定投特有
+  totalInvestedAmt?: string;
+  // 实时
+  currentPx?: string;
+  calc?: DetailCalc | null;
+  raw?: Record<string, unknown>;
+}
+
+export interface StrategyDetailResp {
+  detail: StrategyDetail;
+  fallback: boolean;
+  current_px: string;
+  ct_val: string;
+}
+
 export const dataApi = {
   overview: (configId?: number) =>
     http.get<Overview>("/okx/overview", { params: { config_id: configId } }),
@@ -92,6 +216,22 @@ export const dataApi = {
       "/okx/strategies",
       { params: { config_id: configId, kind, history: history ? 1 : 0 } }
     ),
+  strategyDetail: (params: {
+    algoId: string;
+    kind: string;
+    history?: boolean;
+    instType?: string;
+    configId?: number;
+  }) =>
+    http.get<StrategyDetailResp>("/okx/strategies/detail", {
+      params: {
+        config_id: params.configId,
+        algo_id: params.algoId,
+        kind: params.kind,
+        history: params.history ? 1 : 0,
+        inst_type: params.instType,
+      },
+    }),
   gridPositions: (algoId?: string, instId?: string) =>
     http.get("/okx/strategies/grid-positions", { params: { algo_id: algoId, inst_id: instId } }),
   pnlDaily: (configId?: number, days = 90, asset = "") =>

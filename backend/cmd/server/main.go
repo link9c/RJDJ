@@ -80,6 +80,7 @@ func main() {
 		auth.GET("/okx/pnl/daily/status", dataH.PnlFetchStatus)
 		auth.GET("/okx/strategies", dataH.Strategies)
 		auth.GET("/okx/strategies/grid-positions", dataH.GridPositions)
+		auth.GET("/okx/strategies/detail", dataH.StrategyDetail)
 
 		// AI 对话
 		auth.POST("/ai/chat", aiH.Chat)

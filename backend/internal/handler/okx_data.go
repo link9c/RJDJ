@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -334,6 +335,300 @@ func (h *OkxDataHandler) GridPositions(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"list": res})
+}
+
+// StrategyDetail 单个策略详情 + 止盈测算
+// 参数: algo_id(必填) kind(grid/dca/recurring/signal/algo) history=0|1 inst_type
+func (h *OkxDataHandler) StrategyDetail(c *gin.Context) {
+	cred, err := h.resolveCredential(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	algoID := c.Query("algo_id")
+	if algoID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "algo_id 必填"})
+		return
+	}
+	kind := c.Query("kind")
+	history := c.Query("history") == "1"
+	client := h.buildOKXClient(cred)
+
+	// 1) 先试详情接口（主要对运行中策略有效）
+	detail, derr := client.GetStrategyDetail(kind, algoID)
+	fallback := derr != nil
+	if fallback {
+		// 2) 兜底：从运行中/历史列表按 algoId 捞条目（详情接口对已结束策略常返回空）
+		detail = h.findStrategyFromLists(client, kind, algoID, history)
+	}
+	if detail == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "未找到该策略（可能已被删除，或该策略类型暂不支持详情查询）"})
+		return
+	}
+	if detail.InstType == "" {
+		detail.InstType = strings.ToUpper(c.Query("inst_type"))
+	}
+	if detail.InstID == "" {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "策略详情缺少 instId，无法拉取行情与测算"})
+		return
+	}
+
+	// 3) 持仓量与均价。
+	// 马丁(DCA)：机器人仓位不在 account/positions 里，必须用 tradingBot/dca/position-details
+	// （含开仓均价/持仓量/止盈价/强平价/费用），已停止则用最近周期 + 成交记录重建。
+	currentPx := ""
+	isContract := detail.InstType == "SWAP" || detail.InstType == "FUTURES"
+	dcaHandled := false
+	if kind == "dca" {
+		dcaHandled = h.enrichDcaTradingData(client, detail)
+	}
+	if !dcaHandled {
+		if isContract {
+			if positions, err := client.GetPositions(detail.InstType); err == nil {
+				for _, p := range positions {
+					if p.InstId != detail.InstID {
+						continue
+					}
+					// 开平仓模式下按方向匹配；净仓模式 posSide=net
+					if detail.Direction == "long" && strings.EqualFold(p.PosSide, "short") {
+						continue
+					}
+					if detail.Direction == "short" && strings.EqualFold(p.PosSide, "long") {
+						continue
+					}
+					posSz, _ := strconv.ParseFloat(p.Pos, 64)
+					if math.Abs(posSz) == 0 {
+						continue
+					}
+					detail.PosContracts = strconv.FormatFloat(math.Abs(posSz), 'f', -1, 64)
+					if detail.AvgPx == "" {
+						detail.AvgPx = p.AvgPx
+					}
+					if currentPx == "" && p.MarkPx != "" {
+						currentPx = p.MarkPx
+					}
+					break
+				}
+			}
+		} else if base := baseCcy(detail.InstID); base != "" {
+			// 现货：从资金账户余额取持币量（无持仓均价，前端支持手填成本价）
+			if bal, err := client.GetAccountBalance(); err == nil {
+				for _, coin := range bal.Details {
+					if strings.EqualFold(coin.Ccy, base) {
+						if eq, err := strconv.ParseFloat(coin.Eq, 64); err == nil && eq > 0 {
+							detail.BaseSz = coin.Eq
+						}
+						break
+					}
+				}
+			}
+		}
+	}
+
+	// 4) 最新价（持仓里没拿到标记价时）
+	if currentPx == "" {
+		if t, err := client.GetTicker(detail.InstID); err == nil && t != nil {
+			currentPx = t.Last
+		}
+	}
+
+	// 5) 合约面值：详情自带优先，缺失再查产品配置
+	ctVal := detail.CtVal
+	if isContract && ctVal == "" {
+		if in, err := client.GetInstrument(detail.InstID); err == nil && in != nil {
+			ctVal = in.CtVal
+		}
+	}
+
+	// 6) 止盈测算
+	okx.BuildDetailCalc(detail, currentPx, ctVal)
+
+	c.JSON(http.StatusOK, gin.H{
+		"detail":     detail,
+		"fallback":   fallback, // true=详情接口无数据，结果来自列表
+		"current_px": currentPx,
+		"ct_val":     ctVal,
+	})
+}
+
+// enrichDcaTradingData 用马丁专属接口（position-details / cycle-list / orders）
+// 填充当前持仓的开仓均价、持仓量、止盈价及成交记录。
+// 机器人仓位不体现在 account/positions 中，因此该函数处理后无需再走账户持仓兜底；
+// 返回 true 表示这是 DCA 策略（含查不到数据的已停止策略）。
+func (h *OkxDataHandler) enrichDcaTradingData(client *okx.Client, d *okx.StrategyDetail) bool {
+	isContract := d.InstType == "SWAP" || d.InstType == "FUTURES" ||
+		strings.Contains(d.AlgoOrdType, "contract")
+
+	// 1) 当前周期持仓
+	pos, ordType, perr := client.GetDcaPositionDetail(d.AlgoID, d.AlgoOrdType)
+	cycles, cycOt, _ := client.GetDcaCycles(d.AlgoID, firstNonEmpty(ordType, d.AlgoOrdType), 50)
+	d.Cycles = cycles
+
+	if perr == nil && pos != nil {
+		d.Position = pos
+		d.PosSource = "position"
+		d.CycleID = pos.CurCycleID
+		d.AvgPx = pos.AvgPx
+		d.TpTriggerPx = pos.TpPx
+		if pos.SlPx != "" {
+			d.SlTriggerPx = pos.SlPx
+		}
+		if isContract {
+			d.PosContracts = pos.Sz
+		} else if pos.BaseSz != "" {
+			d.BaseSz = pos.BaseSz
+		}
+		d.NotionalUsd = pos.NotionalUsd
+		if pos.Upl != "" {
+			d.Upl = pos.Upl
+		}
+		ot := firstNonEmpty(ordType, cycOt, d.AlgoOrdType)
+		if pos.CurCycleID != "" {
+			if orders, err := client.GetDcaOrders(d.AlgoID, ot, pos.CurCycleID, 100); err == nil {
+				d.Orders = orders
+				if d.CtVal == "" {
+					d.CtVal = firstOrderCtVal(orders)
+				}
+				if d.TpTriggerPx == "" {
+					d.TpTriggerPx = tpPxFromOrders(orders)
+				}
+			}
+		}
+		return true
+	}
+
+	// 2) 无当前持仓（已停止或等待下一轮开仓）：取最近一个有均价的周期，用成交记录重建
+	d.PosSource = "none"
+	for _, cy := range cycles {
+		if cy.AvgPx == "" {
+			continue
+		}
+		ot := firstNonEmpty(cycOt, ordType, d.AlgoOrdType)
+		orders, err := client.GetDcaOrders(d.AlgoID, ot, cy.CycleID, 100)
+		if err != nil {
+			continue
+		}
+		d.PosSource = "cycle"
+		d.CycleID = cy.CycleID
+		d.AvgPx = cy.AvgPx
+		d.TpTriggerPx = firstNonEmpty(cy.TpPx, tpPxFromOrders(orders))
+		if cy.RealizedPnl != "" {
+			d.RealizedPnl = cy.RealizedPnl
+		}
+		d.Orders = orders
+		if d.CtVal == "" {
+			d.CtVal = firstOrderCtVal(orders)
+		}
+		// 该周期开仓单（初始+加仓+手动加仓）累计成交量即为周期持仓量
+		var openQty float64
+		for _, o := range orders {
+			if !isDcaOpeningOrder(o.OrdType) || o.State != "filled" {
+				continue
+			}
+			openQty += parseFloat(o.FilledSz)
+		}
+		if openQty > 0 {
+			if isContract {
+				d.PosContracts = strconv.FormatFloat(openQty, 'f', -1, 64)
+			} else {
+				d.BaseSz = strconv.FormatFloat(openQty, 'f', -1, 64)
+			}
+		}
+		break
+	}
+	return true
+}
+
+// isDcaOpeningOrder 是否为开仓类子订单（止盈/止损/平仓单不计入持仓）
+func isDcaOpeningOrder(t string) bool {
+	switch t {
+	case "init_order", "safety_order", "manual_add_order":
+		return true
+	}
+	return false
+}
+
+// firstOrderCtVal 从成交记录里取合约面值
+func firstOrderCtVal(orders []okx.DcaSubOrder) string {
+	for _, o := range orders {
+		if o.CtVal != "" && o.CtVal != "0" {
+			return o.CtVal
+		}
+	}
+	return ""
+}
+
+// tpPxFromOrders 从成交记录里推断止盈价：优先未成交止盈单挂价，其次已成交止盈单均价
+func tpPxFromOrders(orders []okx.DcaSubOrder) string {
+	for _, o := range orders {
+		if o.OrdType == "tp_order" && o.State == "live" && o.Px != "" {
+			return o.Px
+		}
+	}
+	for _, o := range orders {
+		if (o.OrdType == "tp_order" || o.OrdType == "close_position") && o.State == "filled" && o.AvgFillPx != "" {
+			return o.AvgFillPx
+		}
+	}
+	return ""
+}
+
+func parseFloat(s string) float64 {
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0
+	}
+	return v
+}
+
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// findStrategyFromLists 从策略列表（先运行中后历史）中按 algoId 找条目并包装为详情。
+func (h *OkxDataHandler) findStrategyFromLists(client *okx.Client, kind, algoID string, historyFirst bool) *okx.StrategyDetail {
+	tryOrders := []bool{historyFirst, !historyFirst}
+	for _, hist := range tryOrders {
+		var groups map[string][]okx.BotStrategy
+		if kind == "" || kind == "all" || kind == "algo" {
+			groups = client.GetAllStrategies(hist)
+		} else {
+			groups = map[string][]okx.BotStrategy{}
+			switch kind {
+			case "grid":
+				groups["grid"], _ = client.GetGridStrategies(hist, "")
+			case "dca":
+				groups["dca"], _ = client.GetDcaStrategies(hist, "")
+			case "recurring":
+				groups["recurring"], _ = client.GetRecurringStrategies(hist)
+			case "signal":
+				groups["signal"], _ = client.GetSignalStrategies(hist)
+			}
+		}
+		for _, list := range groups {
+			for i := range list {
+				if list[i].AlgoID == algoID {
+					s := list[i]
+					return &okx.StrategyDetail{BotStrategy: s}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// baseCcy 从 instId 提取标的币：BTC-USDT-SWAP → BTC。
+func baseCcy(instId string) string {
+	parts := strings.Split(instId, "-")
+	if len(parts) >= 1 {
+		return parts[0]
+	}
+	return ""
 }
 
 func atoiDefault(s string, def int) int {

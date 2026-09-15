@@ -4,6 +4,7 @@ import Layout from "./components/Layout";
 import LoginPage from "./pages/Login";
 import DashboardPage from "./pages/Dashboard";
 import StrategiesPage from "./pages/Strategies";
+import StrategyDetailPage from "./pages/StrategyDetail";
 import ConfigPage from "./pages/Config";
 import AnalyzePage from "./pages/Analyze";
 
@@ -28,6 +29,7 @@ export default function App() {
       >
         <Route path="/" element={<DashboardPage />} />
         <Route path="/strategies" element={<StrategiesPage />} />
+        <Route path="/strategies/detail" element={<StrategyDetailPage />} />
         <Route path="/analyze" element={<AnalyzePage />} />
         <Route path="/config" element={<ConfigPage />} />
       </Route>

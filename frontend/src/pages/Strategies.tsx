@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bot, RefreshCw, AlertTriangle, Grid3x3, Repeat, Radio, Zap, Layers, TrendingUp } from "lucide-react";
+import { Bot, RefreshCw, AlertTriangle, Grid3x3, Repeat, Radio, Zap, Layers, TrendingUp, ChevronRight, DollarSign } from "lucide-react";
 import { dataApi } from "@/api";
 import type { BotStrategy } from "@/api";
 import { useConfigStore } from "@/store/config";
@@ -164,10 +164,66 @@ function StrategyTable({
     return k === activeKind;
   });
 
+  const navigate = useNavigate();
+
+  // 当前视图全部策略收益汇总
+  const summary = (() => {
+    let total = 0;
+    let win = 0;
+    let lose = 0;
+    let count = 0;
+    for (const [, items] of groupsToShow) {
+      for (const s of items) {
+        const pnl = Number(s.totalPnl || s.upl || s.closePnl || 0);
+        if (!Number.isFinite(pnl)) continue;
+        total += pnl;
+        if (pnl > 0) win++;
+        else if (pnl < 0) lose++;
+        count++;
+      }
+    }
+    return { total, win, lose, count };
+  })();
+
+  const goDetail = (s: BotStrategy, groupKind: string) => {
+    const params = new URLSearchParams({
+      algoId: s.algoId,
+      kind: s.type || groupKind,
+      history: history ? "1" : "0",
+    });
+    if (s.instType) params.set("instType", s.instType);
+    navigate(`/strategies/detail?${params.toString()}`);
+  };
+
   if (groupsToShow.length === 0) return null;
 
   return (
     <div className="space-y-4">
+      {/* 当前视图总收入汇总 */}
+      <div className="card flex flex-wrap items-center gap-x-6 gap-y-2">
+        <div className="flex items-center gap-2">
+          <span className="h-9 w-9 rounded-xl bg-brand-50 flex items-center justify-center">
+            <DollarSign size={18} className="text-brand-600" />
+          </span>
+          <div>
+            <div className="text-[11px] text-slate-400">
+              当前视图{history ? "历史策略" : "运行中策略"}总收入
+            </div>
+            <div className={`text-xl font-bold leading-tight ${upDownClass(summary.total)}`}>
+              {fmtUsd(summary.total)}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-4 text-xs text-slate-400">
+          <span>共 {summary.count} 个策略</span>
+          <span className="text-red-600">盈利 {summary.win}</span>
+          <span className="text-green-600">亏损 {summary.lose}</span>
+        </div>
+        <span className="text-[11px] text-slate-300 ml-auto">
+          口径：累计收益/浮盈/已平仓收益之和，点击任意行查看止盈测算
+        </span>
+      </div>
+
       {groupsToShow.map(([kind, items]) => (
         <div key={kind} className="card overflow-hidden">
           <div className="px-5 py-3 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
@@ -175,7 +231,7 @@ function StrategyTable({
             <span className="text-xs text-slate-400">{history ? "历史" : "运行中"} {items.length} 个</span>
           </div>
           <div className="lg:hidden px-5 py-1.5 text-[11px] text-slate-400 bg-slate-50 border-b border-slate-100">
-            ← 左右滑动查看更多列 →
+            ← 左右滑动查看更多列，点击行查看详情 →
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -188,11 +244,16 @@ function StrategyTable({
                   <th className="th">投入</th>
                   <th className="th">浮动/累计收益</th>
                   <th className="th">创建时间</th>
+                  <th className="th w-8"></th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((s, i) => (
-                  <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
+                  <tr
+                    key={s.algoId || i}
+                    onClick={() => goDetail(s, kind)}
+                    className="border-t border-slate-100 hover:bg-brand-50/40 cursor-pointer transition-colors"
+                  >
                     <td className="td font-medium">
                       <span>{s.instId || s.instType || "-"}</span>
                       {s.instType && INST_LABEL[s.instType] && (
@@ -219,6 +280,9 @@ function StrategyTable({
                         : "-"}
                     </td>
                     <td className="td text-xs text-slate-400">{fmtTime(s.cTime)}</td>
+                    <td className="td text-slate-300">
+                      <ChevronRight size={16} />
+                    </td>
                   </tr>
                 ))}
               </tbody>

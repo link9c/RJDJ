@@ -4,22 +4,23 @@ import (
 	"encoding/json"
 	"net/url"
 	"strconv"
+	"strings"
 )
 
 // ============= 行情与公共数据（免鉴权） =============
 
 type Ticker struct {
-	InstId  string `json:"instId"`
-	Last    string `json:"last"`
-	LastSz  string `json:"lastSz"`
-	AskPx   string `json:"askPx"`
-	BidPx   string `json:"bidPx"`
-	Open24h string `json:"open24h"`
-	High24h string `json:"high24h"`
-	Low24h  string `json:"low24h"`
-	Vol24h  string `json:"vol24h"`
+	InstId    string `json:"instId"`
+	Last      string `json:"last"`
+	LastSz    string `json:"lastSz"`
+	AskPx     string `json:"askPx"`
+	BidPx     string `json:"bidPx"`
+	Open24h   string `json:"open24h"`
+	High24h   string `json:"high24h"`
+	Low24h    string `json:"low24h"`
+	Vol24h    string `json:"vol24h"`
 	VolCcy24h string `json:"volCcy24h"`
-	Ts      string `json:"ts"`
+	Ts        string `json:"ts"`
 }
 
 // GetTicker 获取单个产品行情
@@ -62,6 +63,45 @@ func (c *Client) GetTickers(instType string) ([]Ticker, error) {
 
 // Kline 单根K线
 type Kline [6]string // [ts, o, h, l, c, vol]
+
+// Instrument 产品配置（止盈测算需要合约面值 ctVal）
+type Instrument struct {
+	InstID    string `json:"instId"`
+	InstType  string `json:"instType"`
+	CtVal     string `json:"ctVal"`    // 合约面值（币/张），仅合约
+	CtValCcy  string `json:"ctValCcy"` // 面值币种
+	SettleCcy string `json:"settleCcy"`
+	CtMult    string `json:"ctMult"`
+}
+
+// GetInstrument 查询单个产品配置（免鉴权）。instType 可空，接口按 instId 唯一返回。
+func (c *Client) GetInstrument(instId string) (*Instrument, error) {
+	q := url.Values{}
+	// instType 为必填，按 instId 后缀推断（BTC-USDT-SWAP / BTC-USD-240628 / BTC-USD-240628-65000-C）
+	instType := "SPOT"
+	switch {
+	case strings.HasSuffix(instId, "-SWAP"):
+		instType = "SWAP"
+	case strings.Contains(instId, "-OPTION-"):
+		instType = "OPTION"
+	case strings.HasSuffix(instId, "-FUTURES") || strings.Count(instId, "-") == 2:
+		instType = "FUTURES"
+	}
+	q.Set("instType", instType)
+	q.Set("instId", instId)
+	data, err := c.PublicRequest("/api/v5/public/instruments", q)
+	if err != nil {
+		return nil, err
+	}
+	if len(data) == 0 {
+		return &Instrument{InstID: instId, InstType: instType}, nil
+	}
+	var in Instrument
+	if err := json.Unmarshal(data[0], &in); err != nil {
+		return nil, err
+	}
+	return &in, nil
+}
 
 // GetCandles 获取K线，bar: 1m/5m/15m/1H/4H/1D 等
 func (c *Client) GetCandles(instId, bar string, limit int) ([][]string, error) {
